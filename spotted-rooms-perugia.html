@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotted Rooms Perugia | Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #e4405f;
+      --secondary: #333;
+      --accent: #27ae60;
+      --warning: #f1c40f; /* Giallo per prezzo medio */
+      --bg: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      --white: #ffffff;
+      --shadow: 0 4px 15px rgba(0,0,0,0.08);
+      --shadow-hover: 0 8px 25px rgba(0,0,0,0.15);
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: #333;
+      display: flex; height: 100vh; overflow: hidden;
+    }
+
+    header {
+      background: var(--white);
+      padding: 0 20px;
+      height: 65px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      width: 100%; position: fixed; top: 0; z-index: 1000;
+      border-bottom: 2px solid var(--primary);
+    }
+
+    header h1 { margin: 0; font-size: 1.5rem; color: var(--primary); letter-spacing: -0.5px; }
+
+    .sidebar-left {
+      width: 340px; background: var(--white);
+      margin-top: 65px; display: flex; flex-direction: column;
+      border-right: 1px solid #eee; z-index: 900;
+      box-shadow: var(--shadow);
+    }
+
+    .sidebar-tabs { display: flex; background: linear-gradient(90deg, #f1f1f1 0%, #e9ecef 100%); border-bottom: 1px solid #eee; }
+    .sidebar-tab {
+      flex: 1; padding: 15px; border: none; cursor: pointer;
+      font-weight: 600; color: #777; transition: all 0.3s ease;
+      position: relative;
+    }
+    .sidebar-tab:hover { background: rgba(228, 64, 95, 0.1); color: var(--primary); }
+    .sidebar-tab.active { background: var(--white); color: var(--primary); border-bottom: 3px solid var(--primary); }
+
+    .sidebar-content { flex: 1; overflow-y: auto; padding: 25px; background: var(--white); }
+
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    .filter-group { margin-bottom: 18px; }
+    .filter-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem; color: #555; }
+    .filter-group input, .filter-group select {
+      width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 0.9rem; box-sizing: border-box;
+      transition: border-color 0.3s ease;
+    }
+    .filter-group input:focus, .filter-group select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 5px rgba(228, 64, 95, 0.3); }
+
+    /* Tag selection UI nel modal */
+    .tag-selector { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .tag-checkbox { display: none; }
+    .tag-label { 
+      padding: 6px 12px; background: #eee; border-radius: 20px; 
+      font-size: 0.75rem; cursor: pointer; transition: all 0.2s ease; font-weight: 600;
+    }
+    .tag-label:hover { background: #ddd; }
+    .tag-checkbox:checked + .tag-label { background: var(--primary); color: white; transform: scale(1.05); }
+
+    .apply-btn {
+      width: 100%; padding: 14px; background: linear-gradient(45deg, var(--primary), #d6336c); color: white; border: none;
+      border-radius: 10px; cursor: pointer; font-weight: 700; transition: all 0.3s ease;
+      box-shadow: var(--shadow);
+    }
+    .apply-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+
+    .cta-button {
+      width: 100%; padding: 14px; background: linear-gradient(45deg, var(--secondary), #555); color: white; border: none;
+      border-radius: 10px; cursor: pointer; font-weight: 600; margin-top: 20px;
+      transition: all 0.3s ease; box-shadow: var(--shadow);
+    }
+    .cta-button:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+
+    .main-content { flex: 1; margin-top: 65px; position: relative; }
+
+    #map { width: 100%; height: 100%; border-radius: 10px; margin: 10px; box-shadow: var(--shadow); }
+
+    #coinquilini-list-view {
+      display: none; padding: 40px; height: 100%; overflow-y: auto; box-sizing: border-box;
+      background: var(--bg);
+    }
+    .profiles-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px;
+    }
+
+    .profile-card {
+      background: var(--white); border-radius: 18px; padding: 25px;
+      box-shadow: var(--shadow); position: relative;
+      border: 1px solid #eee; transition: all 0.3s ease;
+    }
+    .profile-card:hover { border-color: var(--primary); transform: translateY(-5px); box-shadow: var(--shadow-hover); }
+    
+    .price-tag { color: var(--primary); font-weight: 800; font-size: 1.2rem; margin: 10px 0; }
+    
+    .tag-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+    .tag { 
+      padding: 4px 12px; background: linear-gradient(45deg, #f0f0f0, #e9ecef); border-radius: 20px; 
+      font-size: 0.75rem; font-weight: 600; color: #666; 
+    }
+
+    .leaflet-popup-content-wrapper { border-radius: 15px; padding: 5px; box-shadow: var(--shadow); }
+    .custom-popup-content b { color: var(--primary); font-size: 1.1rem; display: block; margin-bottom: 8px; }
+    .popup-info { margin: 4px 0; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); 
+      z-index: 2000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(4px);
+    }
+    .modal-overlay.show { display: flex; }
+    .modal { background: var(--white); padding: 35px; border-radius: 24px; width: 90%; max-width: 420px; position: relative; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-hover); }
+    .close-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999; transition: color 0.3s; }
+    .close-btn:hover { color: var(--primary); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Spotted Rooms Perugia</h1>
+</header>
+
+<div class="sidebar-left">
+  <div class="sidebar-tabs">
+    <button class="sidebar-tab active" data-tab="stanze"><i class="fas fa-home"></i> Stanze</button>
+    <button class="sidebar-tab" data-tab="coinquilini"><i class="fas fa-users"></i> Coinquilini</button>
+  </div>
+  
+  <div class="sidebar-content">
+    <div id="stanze-pane" class="tab-pane active">
+      <div class="filter-group">
+        <label>Zona</label>
+        <select id="map-zona">
+          <option value="">Tutte le zone</option>
+          <option value="Centro">Centro Storico</option>
+          <option value="Elce">Elce / Università</option>
+          <option value="San Sisto">San Sisto / Medicina</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Budget Massimo (€)</label>
+        <input type="number" id="map-prezzo" placeholder="Es: 350">
+      </div>
+      <div class="filter-group">
+        <label>Tag richiesti</label>
+        <div class="tag-selector" id="map-tag-filters">
+          <input type="checkbox" id="map-tag1" value="No Fumatori" class="tag-checkbox">
+          <label for="map-tag1" class="tag-label">🚭 No Fumatori</label>
+          <input type="checkbox" id="map-tag2" value="Pet Friendly" class="tag-checkbox">
+          <label for="map-tag2" class="tag-label">🐾 Pet Friendly</label>
+          <input type="checkbox" id="map-tag3" value="Erasmus OK" class="tag-checkbox">
+          <label for="map-tag3" class="tag-label">🌍 Erasmus OK</label>
+          <input type="checkbox" id="map-tag4" value="Social" class="tag-checkbox">
+          <label for="map-tag4" class="tag-label">🍷 Social</label>
+          <input type="checkbox" id="map-tag5" value="Silenziosa" class="tag-checkbox">
+          <label for="map-tag5" class="tag-label">📚 Silenziosa</label>
+          <input type="checkbox" id="map-tag6" value="Bagno Privato" class="tag-checkbox">
+          <label for="map-tag6" class="tag-label">🛁 Bagno Privato</label>
+          <input type="checkbox" id="map-tag7" value="Internet Veloce" class="tag-checkbox">
+          <label for="map-tag7" class="tag-label">⚡ Internet Veloce</label>
+        </div>
+      </div>
+      <button class="apply-btn" id="apply-map-filters"><i class="fas fa-search"></i> Aggiorna Mappa</button>
+      <div style="margin-top: 15px; font-size: 0.8rem;">
+        Legenda prezzi: <br>
+        🟢 < 300€ | 🟡 300€-350€ | 🔴 > 350€
+      </div>
+    </div>
+
+    <div id="coinquilini-pane" class="tab-pane">
+      <div class="filter-group">
+        <label>Cerca per nome o facoltà</label>
+        <input type="text" id="search-profiles" placeholder="Es: Marco o Informatica">
+      </div>
+      <div class="filter-group">
+        <label>Budget Minimo (€)</label>
+        <input type="number" id="filter-p-budget-min" placeholder="Es: 250">
+      </div>
+      <div class="filter-group">
+        <label>Cerca per zona</label>
+        <select id="filter-p-zona">
+          <option value="">Ovunque</option>
+          <option value="Centro">Centro</option>
+          <option value="Elce">Elce</option>
+          <option value="San Sisto">San Sisto</option>
+        </select>
+      </div>
+      <button class="apply-btn" id="apply-p-filters"><i class="fas fa-search"></i> Cerca Coinquilini</button>
+      <button class="cta-button" id="open-modal-btn"><i class="fas fa-plus"></i> Crea Profilo</button>
+    </div>
+  </div>
+</div>
+
+<div class="main-content">
+  <div id="map"></div>
+  <div id="coinquilini-list-view">
+    <h2 style="margin-bottom: 30px; color: var(--secondary);">Studenti in cerca di casa</h2>
+    <div class="profiles-grid" id="profiles-container"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="profile-modal">
+  <div class="modal">
+    <span class="close-btn" id="close-modal">&times;</span>
+    <h2 style="margin-top: 0; color: var(--primary);">Il tuo profilo</h2>
+    <form id="new-profile-form">
+      <input type="text" id="p-nome" placeholder="Nome" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+      <input type="text" id="p-facolta" placeholder="Cosa studi?" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+      <select id="p-anno" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+        <option value="">Anno di corso</option>
+        <option value="Primo">Primo</option>
+        <option value="Secondo">Secondo</option>
+        <option value="Terzo">Terzo</option>
+        <option value="Quarto+">Quarto o più</option>
+      </select>
+      <select id="p-stile" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+        <option value="">Stile di convivenza</option>
+        <option value="Tranquillo">Tranquillo</option>
+        <option value="Social">Social</option>
+        <option value="Notturno">Notturno</option>
+        <option value="Organizzato">Organizzato</option>
+      </select>
+      <select id="p-orario" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+        <option value="">Orario preferito</option>
+        <option value="Mattina">Mattina</option>
+        <option value="Pomeriggio">Pomeriggio</option>
+        <option value="Sera">Sera</option>
+        <option value="Notte">Notte</option>
+      </select>
+      <select id="p-animali" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+        <option value="">Accetti animali?</option>
+        <option value="Sì">Sì</option>
+        <option value="No">No</option>
+        <option value="Solo PICCOLI">Solo piccoli animali</option>
+      </select>
+      <input type="number" id="p-budget" placeholder="Budget max (€)" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+      <select id="p-zona" required style="margin-bottom: 12px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+        <option value="">Scegli una zona</option>
+        <option value="Centro">Centro</option>
+        <option value="Elce">Elce</option>
+        <option value="San Sisto">San Sisto</option>
+      </select>
+      
+      <label style="font-size: 0.85rem; font-weight: 600; color: #555;">Seleziona i tuoi Tag:</label>
+      <div class="tag-selector">
+        <input type="checkbox" id="tag1" value="No Fumatori" class="tag-checkbox">
+        <label for="tag1" class="tag-label">🚭 No Fumatori</label>
+        <input type="checkbox" id="tag2" value="Pet Friendly" class="tag-checkbox">
+        <label for="tag2" class="tag-label">🐾 Pet Friendly</label>
+        <input type="checkbox" id="tag3" value="Erasmus OK" class="tag-checkbox">
+        <label for="tag3" class="tag-label">🌍 Erasmus OK</label>
+        <input type="checkbox" id="tag4" value="Social" class="tag-checkbox">
+        <label for="tag4" class="tag-label">🍷 Social</label>
+        <input type="checkbox" id="tag5" value="Silenziosa" class="tag-checkbox">
+        <label for="tag5" class="tag-label">📚 Silenziosa</label>
+        <input type="checkbox" id="tag6" value="Bagno Privato" class="tag-checkbox">
+        <label for="tag6" class="tag-label">🛁 Bagno Privato</label>
+      </div>
+
+      <button type="submit" class="apply-btn" style="margin-top: 20px;">Pubblica Profilo</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Database delle stanze disponibili
+  const stanze = [
+    { id: 1, lat: 43.1121, lng: 12.3888, zona: "Centro", via: "Via delle Cantine", prezzo: 280, genere: "F", inquilini: 2, mood: "Tranquilla", tags: ["No Fumatori", "Silenziosa"], link: "#" },
+    { id: 2, lat: 43.1160, lng: 12.3850, zona: "Elce", via: "Via Pascoli", prezzo: 320, genere: "M", inquilini: 3, mood: "Social", tags: ["Pet Friendly", "Social"], link: "#" },
+    { id: 3, lat: 43.1020, lng: 12.3500, zona: "San Sisto", via: "Via Donizetti", prezzo: 240, genere: "Entrambi", inquilini: 1, mood: "Internazionale", tags: ["Erasmus OK", "Internet Veloce"], link: "#" },
+    { id: 4, lat: 43.1140, lng: 12.3800, zona: "Elce", via: "Via Elce di Sotto", prezzo: 310, genere: "F", inquilini: 2, mood: "Vicino ingegneria", tags: ["No Fumatori", "Internet Veloce"], link: "#" },
+    { id: 5, lat: 43.1090, lng: 12.3895, zona: "Centro", via: "Via dei Priori", prezzo: 400, genere: "Entrambi", inquilini: 2, mood: "Casa di lusso", tags: ["Bagno Privato", "Erasmus OK"], link: "#" },
+    { id: 6, lat: 43.1180, lng: 12.3900, zona: "Centro", via: "Via della Cupa", prezzo: 290, genere: "M", inquilini: 1, mood: "Romantica", tags: ["Pet Friendly", "Social"], link: "#" },
+    { id: 7, lat: 43.1050, lng: 12.3550, zona: "San Sisto", via: "Via San Costanzo", prezzo: 260, genere: "Entrambi", inquilini: 3, mood: "Famigliare", tags: ["Silenziosa", "No Fumatori"], link: "#" },
+    { id: 8, lat: 43.1200, lng: 12.3750, zona: "Elce", via: "Via della Viola", prezzo: 330, genere: "F", inquilini: 2, mood: "Creativa", tags: ["Internet Veloce", "Social"], link: "#" }
+  ];
+
+  // Database dei profili dei coinquilini
+  let profili = [
+    { nome: "Alessia", facolta: "Giurisprudenza", anno: "Secondo", stile: "Tranquillo", orario: "Mattina", animali: "No", budget: 300, zona: "Centro", tags: ["No Fumatori"] },
+    { nome: "Luca", facolta: "Informatica", anno: "Terzo", stile: "Social", orario: "Sera", animali: "Sì", budget: 350, zona: "Elce", tags: ["Pet Friendly", "Social"] },
+    { nome: "Marco", facolta: "Medicina", anno: "Primo", stile: "Organizzato", orario: "Pomeriggio", animali: "No", budget: 280, zona: "San Sisto", tags: ["Silenziosa", "No Fumatori"] },
+    { nome: "Giulia", facolta: "Lettere", anno: "Quarto+", stile: "Social", orario: "Mattina", animali: "No", budget: 320, zona: "Centro", tags: ["Erasmus OK", "Social"] },
+    { nome: "Andrea", facolta: "Ingegneria", anno: "Secondo", stile: "Tranquillo", orario: "Notte", animali: "Sì", budget: 340, zona: "Elce", tags: ["Pet Friendly"] }
+  ];
+
+  // Inizializzazione della mappa con controlli e tile layer
+  const map = L.map('map', { zoomControl: false }).setView([43.1121, 12.3888], 15);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '©OpenStreetMap' }).addTo(map);
+
+  let layerMarkers = L.layerGroup().addTo(map);
+
+  // Funzione per aggiornare i marker sulla mappa con filtri
+  function aggiornaMappa(dati = stanze) {
+    layerMarkers.clearLayers();
+    dati.forEach(s => {
+      // Logica colori basata sul prezzo: Verde < 300 | Giallo 300-350 | Rosso > 350
+      let color = '#27ae60'; // Verde
+      if(s.prezzo >= 300 && s.prezzo <= 350) color = '#f1c40f'; // Giallo
+      if(s.prezzo > 350) color = '#e4405f'; // Rosso
+
+      const popup = `
+        <div class="custom-popup-content">
+          <b>📍 ${s.via}</b>
+          <div class="popup-info">🏠 <i>Zona:</i> ${s.zona}</div>
+          <div class="popup-info">💰 €${s.prezzo}</div>
+          <div class="popup-info">👥 ${s.inquilini} presenti</div>
+          <div class="popup-info">🔍 Cercano: ${s.genere}</div>
+          <div style="margin-top:8px; padding:8px; background:#f9f9f9; border-radius:8px; font-size:0.8rem; border-left:3px solid var(--primary)">
+            "${s.mood}"
+          </div>
+          <div class="tag-container" style="margin-top:10px;">
+            ${s.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+          </div>
+          <a href="${s.link}" target="_blank" style="display:block; margin-top:10px; padding:8px; background:var(--primary); color:white; text-align:center; border-radius:5px; text-decoration:none; font-weight:bold;">Vedi Post</a>
+        </div>
+      `;
+      L.circleMarker([s.lat, s.lng], { radius: 12, color: '#fff', weight: 3, fillOpacity: 0.9, fillColor: color })
+       .addTo(layerMarkers).bindPopup(popup);
+    });
+  }
+
+  // Funzione per renderizzare l'elenco dei profili
+  function renderElenco(dati = profili) {
+    const container = document.getElementById('profiles-container');
+    container.innerHTML = '';
+    dati.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'profile-card';
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between">
+            <h3 style="margin:0">${p.nome}</h3>
+        </div>
+        <p style="margin:10px 0; color:#666">📚 ${p.facolta} • 🎓 ${p.anno} anno • 📍 ${p.zona}</p>
+        <p style="margin:4px 0; color:#777; font-size:0.92rem;">🏠 ${p.stile} • 🕒 ${p.orario} • ${p.animali}</p>
+        <div class="price-tag">€${p.budget}</div>
+        <div class="tag-container">${p.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // Gestione dei tab nella sidebar
+  document.querySelectorAll('.sidebar-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar-tab, .tab-pane').forEach(el => el.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.tab + '-pane').classList.add('active');
+
+      if(tab.dataset.tab === 'coinquilini') {
+        document.getElementById('map').style.display = 'none';
+        document.getElementById('coinquilini-list-view').style.display = 'block';
+        renderElenco();
+      } else {
+        document.getElementById('map').style.display = 'block';
+        document.getElementById('coinquilini-list-view').style.display = 'none';
+        setTimeout(() => map.invalidateSize(), 200);
+      }
+    });
+  });
+
+  // Applicazione dei filtri per la mappa
+  document.getElementById('apply-map-filters').onclick = () => {
+    const zona = document.getElementById('map-zona').value;
+    const prezzo = document.getElementById('map-prezzo').value || Infinity;
+    const selectedTags = Array.from(document.querySelectorAll('#map-tag-filters .tag-checkbox:checked')).map(el => el.value);
+    const filtrati = stanze.filter(s => 
+      (!zona || s.zona === zona) &&
+      s.prezzo <= prezzo &&
+      (selectedTags.length === 0 || selectedTags.every(tag => s.tags.includes(tag)))
+    );
+    aggiornaMappa(filtrati);
+  };
+
+  // Applicazione dei filtri per i profili
+  document.getElementById('apply-p-filters').onclick = () => {
+    const search = document.getElementById('search-profiles').value.toLowerCase();
+    const budgetMin = document.getElementById('filter-p-budget-min').value || 0;
+    const zona = document.getElementById('filter-p-zona').value;
+    const filtrati = profili.filter(p => 
+      (!search || p.nome.toLowerCase().includes(search) || p.facolta.toLowerCase().includes(search)) &&
+      p.budget >= budgetMin &&
+      (!zona || p.zona === zona)
+    );
+    renderElenco(filtrati);
+  };
+
+  // Gestione del modal per creare profilo
+  const modal = document.getElementById('profile-modal');
+  document.getElementById('open-modal-btn').onclick = () => modal.classList.add('show');
+  document.getElementById('close-modal').onclick = () => modal.classList.remove('show');
+
+  // Invio del form per creare un nuovo profilo
+  document.getElementById('new-profile-form').onsubmit = (e) => {
+    e.preventDefault();
+    
+    // Raccolta dei tag selezionati all'interno del modal
+    const selectedTags = [];
+    document.querySelectorAll('#profile-modal .tag-checkbox:checked').forEach(checkbox => {
+      selectedTags.push(checkbox.value);
+    });
+
+    profili.unshift({
+      nome: document.getElementById('p-nome').value,
+      facolta: document.getElementById('p-facolta').value,
+      anno: document.getElementById('p-anno').value,
+      stile: document.getElementById('p-stile').value,
+      orario: document.getElementById('p-orario').value,
+      animali: document.getElementById('p-animali').value,
+      budget: Number(document.getElementById('p-budget').value),
+      zona: document.getElementById('p-zona').value,
+      tags: selectedTags
+    });
+
+    renderElenco();
+    modal.classList.remove('show');
+    e.target.reset();
+  };
+
+  // Inizializzazione della mappa con tutti i marker
+  aggiornaMappa();
+</script>
+</body>
+</html>
